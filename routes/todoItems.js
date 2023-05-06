@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const todoItemsModel = require("../models/todoItems");
 const userModel = require("../models/user");
+const permissionModel = require("../models/permissions")
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const authMiddleware = require("../middlewares/authMiddleware");
@@ -12,7 +13,7 @@ router.post("/api/item", authMiddleware, async (req, res) => {
 
     const newItem = new todoItemsModel({
       item: req.body.item,
-      user: userId,
+      users: [userId],
     });
     //save this item in database
     const saveItem = await newItem.save();
@@ -27,8 +28,17 @@ router.get("/api/items", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.userData;
 
-    const allTodoItems = await todoItemsModel.find({ user: userId });
-    res.status(200).json(allTodoItems);
+    const allTodoItems = await todoItemsModel.find({ users: { $in: [userId] } });
+
+    const authorizedTodoItems = allTodoItems.map((todoItem) => {
+      if (!todoItem.users.includes(userId)) {
+        todoItem.users.push(userId);
+        todoItem.save();
+      }
+      return todoItem;
+    });
+
+    res.status(200).json(authorizedTodoItems);
   } catch (err) {
     res.json(err);
   }
@@ -94,12 +104,13 @@ router.post("/api/signup", async (req, res) => {
 //Get all Users
 router.get("/api/users", async (req, res) => {
   try {
-    const users = await userModel.find();
+    const users = await userModel.find().select("-_id -password").lean();
     res.status(200).json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
 
 //login user
 router.post("/api/login", async (req, res) => {
@@ -147,10 +158,76 @@ router.post("/api/login", async (req, res) => {
 });
 
 //Logout user - i'm not using this route, instead i'm using this same function on the frontend
-router.post("/logout", (req, res) => {
+router.post("/api/logout", (req, res) => {
   localStorage.removeItem("jwt");
   res.status(200).json({ message: "Logout successful" });
 });
+
+//permission route
+router.post("/api/items/authorize-all", authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const { targetUserId } = req.body;
+
+    const result = await todoItemsModel.updateMany(
+      { users: userId, users: { $nin: [targetUserId] } },
+      { $addToSet: { users: targetUserId } }
+    );
+
+    const authorizedTodoItems = await todoItemsModel.find({ users: targetUserId });
+
+    res.status(200).json(authorizedTodoItems);
+  } catch (err) {
+    res.json(err);
+  }
+});
+
+//user permissions
+router.post("/api/authorizations", authMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.userData;
+
+    // Verifica se o permissionTo é um id de usuário válido
+    const permissionToUser = await userModel.findById(req.body.permissionTo);
+    if (!permissionToUser) {
+      return res.status(400).json({ message: "Invalid permissionTo user ID" });
+    }
+
+    const newPermission = new permissionModel({
+      nameTo: req.body.nameTo,
+      permissionTo: req.body.permissionTo,
+      permissionFrom: userId,
+    });
+    //save this item in database
+    const savePermission = await newPermission.save();
+    res.status(200).json(savePermission);
+  } catch (err) {
+    res.json(err);
+  }
+});
+
+//get all users permissions
+router.get("/api/all-authorizations", async (req, res) => {
+  try {
+    const users = await permissionModel.find();
+    res.status(200).json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+//Delete permission
+router.delete("/api/permission/:id", async (req, res) => {
+  try {
+    //find the item by its id and delete it
+    const deleteItem = await permissionModel.findByIdAndDelete(req.params.id);
+    res.status(200).json("Item Deleted");
+  } catch (err) {
+    res.json(err);
+  }
+});
+
+
 
 //export router
 module.exports = router;

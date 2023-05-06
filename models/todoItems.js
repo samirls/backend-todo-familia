@@ -1,4 +1,3 @@
-//import mongoose to create new Schema
 const mongoose = require('mongoose')
 
 const TodoItemSchema = new mongoose.Schema({
@@ -10,9 +9,8 @@ const TodoItemSchema = new mongoose.Schema({
     type: Date,
     default: Date.now(),
   },
-  user:{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+  users:{
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     required: true,
   }
 })
