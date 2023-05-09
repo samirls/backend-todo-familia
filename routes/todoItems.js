@@ -170,7 +170,7 @@ router.post("/api/items/authorize-all", authMiddleware, async (req, res) => {
     const { targetUserId } = req.body;
 
     const result = await todoItemsModel.updateMany(
-      { users: userId, users: { $nin: [targetUserId] } },
+      { users: userId },
       { $addToSet: { users: targetUserId } }
     );
 
@@ -207,10 +207,11 @@ router.post("/api/authorizations", authMiddleware, async (req, res) => {
 });
 
 //get all users permissions
-router.get("/api/all-authorizations", async (req, res) => {
+router.get("/api/all-authorizations", authMiddleware, async (req, res) => {
   try {
-    const users = await permissionModel.find();
-    res.status(200).json(users);
+    const { userId } = req.userData;
+    const authorizations = await permissionModel.find({ userId: userId });
+    res.status(200).json(authorizations);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
