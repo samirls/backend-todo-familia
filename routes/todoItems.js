@@ -210,7 +210,7 @@ router.post("/api/authorizations", authMiddleware, async (req, res) => {
 router.get("/api/all-authorizations", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.userData;
-    const authorizations = await permissionModel.find({ userId: userId });
+    const authorizations = await permissionModel.find({ permissionFrom: userId });
     res.status(200).json(authorizations);
   } catch (err) {
     res.status(500).json({ message: err.message });
